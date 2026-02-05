@@ -25,17 +25,4 @@ class InventoryLogRepository
             ->orderByDesc('id')
             ->get();
     }
-
-    public function createMultiple(array $entries)
-    {
-        return array_map(function ($entry) {
-            return $this->create(
-                $entry['product_id'],
-                $entry['location_id'],
-                $entry['quantity_change'],
-                $entry['type'],
-                $entry['user_id'] ?? null
-            );
-        }, $entries);
-    }
 }

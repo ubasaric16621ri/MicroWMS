@@ -2,32 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\LocationRepository;
-use App\Repositories\StockRepository;
+use App\Services\DashboardService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    protected $stockRepository;
-    protected $locationRepository;
+    protected $dashboardService;
 
-    public function __construct(StockRepository $stockRepository, LocationRepository $locationRepository)
+    public function __construct(DashboardService $dashboardService)
     {
-        $this->stockRepository = $stockRepository;
-        $this->locationRepository = $locationRepository;
+        $this->dashboardService = $dashboardService;
     }
 
     public function index(Request $request)
     {
-        $perPage = min($request->query('per_page', 15), 100);
-        
-        $totalsByProduct = $this->stockRepository->getProductsWithTotalStock($perPage);
+        $data = $request->validate([
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
 
-        $emptyLocations = $this->locationRepository->getEmptyLocations();
+        $perPage = $data['per_page'] ?? 15;
+        
+        $totalsByProduct = $this->dashboardService->getTotalsByProduct($perPage);
+        $emptyLocations = $this->dashboardService->getEmptyLocations();
 
         return response()->json([
             'totals_by_product' => $totalsByProduct,
-            'empty_locations'   => $emptyLocations,
+            'empty_locations'   => $emptyLocations->count(),
         ]);
     }
 }

@@ -1,11 +1,25 @@
 <?php
 
-namespace App\Repositories;
+namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
 
-class LocationRepository
+class DashboardService
 {
+    public function getTotalsByProduct($perPage = 15)
+    {
+        return DB::table('products')
+            ->leftJoin('stocks', 'products.id', '=', 'stocks.product_id')
+            ->select(
+                'products.id',
+                'products.sku',
+                'products.name',
+                DB::raw('COALESCE(SUM(stocks.quantity), 0) as total_quantity')
+            )
+            ->groupBy('products.id', 'products.sku', 'products.name')
+            ->orderBy('products.id')
+            ->paginate($perPage);
+    }
 
     public function getEmptyLocations()
     {
@@ -21,11 +35,5 @@ class LocationRepository
             ->havingRaw('COALESCE(SUM(stocks.quantity), 0) = 0')
             ->orderBy('locations.id')
             ->get();
-    }
-
-  
-    public function getTotalCount()
-    {
-        return DB::table('locations')->count();
     }
 }

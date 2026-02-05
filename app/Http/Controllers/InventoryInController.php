@@ -2,20 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\InventoryLogRepository;
-use App\Repositories\StockRepository;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class InventoryInController extends Controller
 {
-    protected $stockRepository;
-    protected $inventoryLogRepository;
+    protected $inventoryService;
 
-    public function __construct(StockRepository $stockRepository, InventoryLogRepository $inventoryLogRepository)
+    public function __construct(InventoryService $inventoryService)
     {
-        $this->stockRepository = $stockRepository;
-        $this->inventoryLogRepository = $inventoryLogRepository;
+        $this->inventoryService = $inventoryService;
     }
 
     public function store(Request $request)
@@ -27,20 +23,7 @@ class InventoryInController extends Controller
         ]);
 
         try {
-            DB::transaction(function () use ($data) {
-
-                DB::statement('SET innodb_lock_wait_timeout = 1');
-
-                $stock = $this->stockRepository->getStockWithLock($data['product_id'], $data['location_id']);
-
-                if ($stock) {
-                    $this->stockRepository->updateQuantity($stock, $data['quantity']);
-                } else {
-                    $this->stockRepository->create($data['product_id'], $data['location_id'], $data['quantity']);
-                }
-
-                $this->inventoryLogRepository->create($data['product_id'], $data['location_id'], $data['quantity'], 'IN');
-            });
+            $this->inventoryService->inventoryIn($data['product_id'], $data['location_id'], $data['quantity']);
 
             return response('', 204);
 

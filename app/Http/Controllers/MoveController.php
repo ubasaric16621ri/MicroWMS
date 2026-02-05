@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\InventoryLogRepository;
-use App\Repositories\StockRepository;
+use App\Exceptions\InsufficientStockException;
+use App\Exceptions\SameLocationMoveException;
+use App\Policies\InventoryPolicy;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class MoveController extends Controller
 {
-    protected $stockRepository;
-    protected $inventoryLogRepository;
+    protected $inventoryService;
 
-    public function __construct(StockRepository $stockRepository, InventoryLogRepository $inventoryLogRepository)
+    public function __construct(InventoryService $inventoryService)
     {
-        $this->stockRepository = $stockRepository;
-        $this->inventoryLogRepository = $inventoryLogRepository;
+        $this->inventoryService = $inventoryService;
     }
 
     public function store(Request $request)
@@ -27,49 +26,22 @@ class MoveController extends Controller
             'quantity'          => 'required|integer|min:1',
         ]);
 
-        if ($data['from_location_id'] == $data['to_location_id']) {
+        try {
+            InventoryPolicy::ensureDifferentLocations($data['from_location_id'], $data['to_location_id']);
+            $this->inventoryService->move($data['product_id'], $data['from_location_id'], $data['to_location_id'], $data['quantity']);
+
+            return response('', 204);
+        } catch (SameLocationMoveException $e) {
             return response()->json([
-                'message' => 'Cannot move from the same location. Source and destination must be different.',
+                'message' => $e->getMessage(),
                 'errors' => [
                     'from_location_id' => ['Cannot move from the same location.']
                 ]
             ], 422);
+        } catch (InsufficientStockException $e) {
+            return response()->json(['message' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 400);
         }
-
-        DB::transaction(function () use ($data) {
-
-            $from = $this->stockRepository->getStockWithLock($data['product_id'], $data['from_location_id']);
-
-            if (!$from || $from->quantity < $data['quantity']) {
-                abort(400, 'Insufficient stock. Available: ' . ($from?->quantity ?? 0) . ', Requested: ' . $data['quantity']);
-            }
-
-            $this->stockRepository->updateQuantity($from, -$data['quantity']);
-
-            $to = $this->stockRepository->getStockWithLock($data['product_id'], $data['to_location_id']);
-
-            if ($to) {
-                $this->stockRepository->updateQuantity($to, $data['quantity']);
-            } else {
-                $this->stockRepository->create($data['product_id'], $data['to_location_id'], $data['quantity']);
-            }
-
-            $this->inventoryLogRepository->createMultiple([
-                [
-                    'product_id' => $data['product_id'],
-                    'location_id' => $data['from_location_id'],
-                    'quantity_change' => -$data['quantity'],
-                    'type' => 'MOVE',
-                ],
-                [
-                    'product_id' => $data['product_id'],
-                    'location_id' => $data['to_location_id'],
-                    'quantity_change' => $data['quantity'],
-                    'type' => 'MOVE',
-                ],
-            ]);
-        });
-
-        return response('', 204);
     }
 }
