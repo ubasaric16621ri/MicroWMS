@@ -72,3 +72,4 @@ class StockRepository
             ->orderBy('products.id')
             ->paginate($perPage);
     }
+}
