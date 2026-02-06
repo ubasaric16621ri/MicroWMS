@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\InsufficientStockException;
 use App\Exceptions\SameLocationMoveException;
-use App\Exceptions\InvalidMoveQuantityException;    
+use App\Exceptions\InvalidMoveQuantityException;
 use App\Exceptions\ReferenceAlreadyReversedException;
 use App\Exceptions\ReferenceNotFoundException;
 use App\Exceptions\ReferencePartiallyReversedException;
@@ -50,7 +50,7 @@ class InventoryService
             throw new SameLocationMoveException();
         }
 
-        if($quantity <= 0) {
+        if ($quantity <= 0) {
             throw new InvalidMoveQuantityException();
         }
 
@@ -98,6 +98,68 @@ class InventoryService
         });
     }
 
+    public function bulkMove(array $items)
+    {
+        return DB::transaction(function () use ($items) {
+            $referenceId = (string) Str::uuid();
+
+            foreach ($items as $item) {
+                $productId = $item['product_id'];
+                $fromLocationId = $item['from_location_id'];
+                $toLocationId = $item['to_location_id'];
+                $quantity = $item['quantity'];
+
+                if ($fromLocationId === $toLocationId) {
+                    throw new SameLocationMoveException();
+                }
+
+                if ($quantity <= 0) {
+                    throw new InvalidMoveQuantityException();
+                }
+
+                $from = $this->stockRepository->getStock($productId, $fromLocationId);
+
+                if (!$from || $from->quantity < $quantity) {
+                    $available = $from ? (int) $from->quantity : 0;
+                    throw new InsufficientStockException($available, (int) $quantity);
+                }
+
+                $this->stockRepository->updateQuantity($from, -$quantity);
+
+                if ($from->quantity == 0) {
+                    $from->delete();
+                }
+
+                $to = $this->stockRepository->getStock($productId, $toLocationId);
+
+                if ($to) {
+                    $this->stockRepository->updateQuantity($to, $quantity);
+                } else {
+                    $this->stockRepository->create($productId, $toLocationId, $quantity);
+                }
+
+                $this->createMultipleLogs([
+                    [
+                        'product_id' => $productId,
+                        'location_id' => $fromLocationId,
+                        'quantity_change' => -$quantity,
+                        'type' => 'MOVE',
+                        'reference_id' => $referenceId,
+                    ],
+                    [
+                        'product_id' => $productId,
+                        'location_id' => $toLocationId,
+                        'quantity_change' => $quantity,
+                        'type' => 'MOVE',
+                        'reference_id' => $referenceId,
+                    ],
+                ]);
+            }
+
+            return $referenceId;
+        });
+    }
+
     private function createMultipleLogs(array $entries)
     {
         foreach ($entries as $entry) {
@@ -112,37 +174,37 @@ class InventoryService
         }
     }
 
-  public function inventoryInBulk(array $items, $userId = null)
-  {
-      return DB::transaction(function () use ($items, $userId) {
-          $referenceId = (string) Str::uuid();
-          foreach ($items as $item) {
-              $productId = $item['product_id'];
-              $locationId = $item['location_id'];
-              $quantity = $item['quantity'];
+    public function inventoryInBulk(array $items, $userId = null)
+    {
+        return DB::transaction(function () use ($items, $userId) {
+            $referenceId = (string) Str::uuid();
+            foreach ($items as $item) {
+                $productId = $item['product_id'];
+                $locationId = $item['location_id'];
+                $quantity = $item['quantity'];
 
-              if ($quantity <= 0) {
-                  throw new \App\Exceptions\InvalidImportException(
-                      (int) $productId,
-                      (int) $locationId,
-                      (int) $quantity
-                  );
-              }
+                if ($quantity <= 0) {
+                    throw new \App\Exceptions\InvalidImportException(
+                        (int) $productId,
+                        (int) $locationId,
+                        (int) $quantity
+                    );
+                }
 
-              $stock = $this->stockRepository->getStock($productId, $locationId);
+                $stock = $this->stockRepository->getStock($productId, $locationId);
 
-              if ($stock) {
-                  $this->stockRepository->updateQuantity($stock, $quantity);
-              } else {
-                  $this->stockRepository->create($productId, $locationId, $quantity);
-              }
+                if ($stock) {
+                    $this->stockRepository->updateQuantity($stock, $quantity);
+                } else {
+                    $this->stockRepository->create($productId, $locationId, $quantity);
+                }
 
-              $this->inventoryLogRepository->create($productId, $locationId, $quantity, 'IN', $userId, $referenceId);
-          }
+                $this->inventoryLogRepository->create($productId, $locationId, $quantity, 'IN', $userId, $referenceId);
+            }
 
-          return $referenceId;
-      });
-  }
+            return $referenceId;
+        });
+    }
 
     public function undoByReference(string $referenceId, $userId = null)
     {
@@ -155,11 +217,11 @@ class InventoryService
                 throw new ReferenceNotFoundException($referenceId);
             }
 
-            if ($logs->every(fn ($log) => $log->reversed_at !== null)) {
+            if ($logs->every(fn($log) => $log->reversed_at !== null)) {
                 throw new ReferenceAlreadyReversedException($referenceId);
             }
 
-            if ($logs->contains(fn ($log) => $log->reversed_at !== null)) {
+            if ($logs->contains(fn($log) => $log->reversed_at !== null)) {
                 throw new ReferencePartiallyReversedException($referenceId);
             }
 
@@ -213,6 +275,4 @@ class InventoryService
                 ->update(['reversed_at' => now()]);
         });
     }
-
-
 }

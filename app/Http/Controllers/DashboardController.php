@@ -21,7 +21,7 @@ class DashboardController extends Controller
         ]);
 
         $perPage = $data['per_page'] ?? 15;
-        
+
         $totalsByProduct = $this->dashboardService->getTotalsByProduct($perPage);
         $emptyLocations = $this->dashboardService->getEmptyLocations();
 
