@@ -23,12 +23,19 @@ class InventoryInController extends Controller
         ]);
 
         try {
-            $this->inventoryService->inventoryIn($data['product_id'], $data['location_id'], $data['quantity']);
+            $referenceId = $this->inventoryService->inventoryIn(
+                $data['product_id'],
+                $data['location_id'],
+                $data['quantity']
+            );
 
-            return response('', 204);
+            return response()->json([
+                'message' => 'Inventory received successfully.',
+                'reference_id' => $referenceId,
+            ], 200);
 
         } catch (\Throwable $e) {
-            return response('', 500);
+            return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }   
 }

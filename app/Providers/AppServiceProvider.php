@@ -20,6 +20,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        BaseVerifyCsrfToken::except(['/inventory/in', '/inventory/move','dashboard']);
+        BaseVerifyCsrfToken::except(['/inventory/in', '/inventory/move','dashboard', '/locations/*', '/inventory/bulk-in','/inventory/undo']);
  }
 }

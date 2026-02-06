@@ -27,7 +27,7 @@ class DashboardController extends Controller
 
         return response()->json([
             'totals_by_product' => $totalsByProduct,
-            'empty_locations'   => $emptyLocations->count(),
+            'empty_locations'   => $emptyLocations,
         ]);
     }
 }

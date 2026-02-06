@@ -10,6 +10,8 @@ class InventoryLog extends Model
         'product_id',
         'location_id',
         'user_id',
+        'reference_id',
+        'reversed_at',
         'quantity_change',
         'type',
         'created_at'
@@ -32,4 +34,3 @@ class InventoryLog extends Model
         return $this->belongsTo(User::class);
     }
 }
-
